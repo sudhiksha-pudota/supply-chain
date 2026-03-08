@@ -85,7 +85,7 @@ st.markdown('<p class="main-header">Walmart Sales Forecasting System</p>', unsaf
 st.markdown('<p class="sub-header">Data-Driven Insights • Model Performance • Business Impact</p>', unsafe_allow_html=True)
 
 # ============================================
-# LOAD ACTUAL DATA
+# LOAD DATA
 # ============================================
 
 @st.cache_data
@@ -138,7 +138,7 @@ def load_data():
         download_file(data_id, data_path)
         data = pd.read_csv(data_path)
         
-        # Feature importance (if exists)
+        # Feature importance
         try:
             download_file(features_id, features_path)
             features = pd.read_csv(features_path)
@@ -161,7 +161,7 @@ if df is None:
     st.stop()
 
 # ============================================
-# HELPER FUNCTIONS (REAL CALCULATIONS)
+# HELPER FUNCTIONS 
 # ============================================
 @st.cache_data
 def calculate_department_stats():
@@ -878,7 +878,7 @@ elif page == "Forecast Predictor":
 
 
 # ============================================
-# PAGE 3: OUTLIER DETECTION (REAL)
+# PAGE 3: OUTLIER DETECTION
 # ============================================
 elif page == "Outlier Detection":
     st.header("Statistical Outlier Detection")
@@ -1063,7 +1063,7 @@ elif page == "Outlier Detection":
         st.info("Outlier departments have significantly higher forecast error costs and need specialized attention")
 
 # ============================================
-# PAGE 4: INVENTORY IMPACT (REAL)
+# PAGE 4: INVENTORY IMPACT
 # ============================================
 elif page == "Inventory Impact":
     st.header("Forecast Error Impact on Inventory")
@@ -1126,7 +1126,7 @@ elif page == "Inventory Impact":
     st.plotly_chart(fig, use_container_width=True)
 
 # ============================================
-# PAGE 5: BUSINESS VALUE (REAL)
+# PAGE 5: BUSINESS VALUE
 # ============================================
 elif page == "Business Value":
     st.header("Business Value of Improved Forecasting")
@@ -1315,8 +1315,9 @@ st.markdown("---")
 st.markdown(
     f"""
     <div style="text-align: center; color: #666; padding: 1rem;">
-        Walmart Sales Forecasting System | Based on actual model performance analysis | {datetime.now().strftime('%Y')}
+        Walmart Sales Forecasting System {datetime.now().strftime('%Y')}
     </div>
     """, 
     unsafe_allow_html=True
+
 )
