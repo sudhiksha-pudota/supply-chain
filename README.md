@@ -86,7 +86,7 @@ A multi-page Streamlit application for deep-dive analysis:
       ```bash
       pip install -r requirements.txt
 
-##Software Requirements
+## Software Requirements
 Operating System: Windows 10/11, macOS 10.15+, or Linux (Ubuntu 20.04+)
 
 Python Version: 3.12.12 (virtual environment recommended)
