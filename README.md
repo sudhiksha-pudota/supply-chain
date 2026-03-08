@@ -72,7 +72,7 @@ A multi-page Streamlit application for deep-dive analysis:
    ```bash
    git clone https://github.com/sudhiksha-pudota/supply-chain.git
    cd supply-chain
-2.**Create virtual environment**
+2. **Create virtual environment**
 
        ```bash
        python -m venv venv
