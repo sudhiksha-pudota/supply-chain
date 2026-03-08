@@ -11,4 +11,5 @@ pytrends
 opencv_python_headless
 gdown
 plotly
+xgboost
 datetime
