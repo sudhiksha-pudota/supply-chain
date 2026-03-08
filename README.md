@@ -73,17 +73,20 @@ A multi-page Streamlit application for deep-dive analysis:
    git clone https://github.com/sudhiksha-pudota/supply-chain.git
    cd supply-chain
 2.**Create virtual environment**
-   ```bash
-    python -m venv venv
-    
-    # On Windows
-    .\venv\Scripts\activate
-    
-    # On macOS/Linux
-    source venv/bin/activate
 
-   pip install -r requirements.txt
-## Software Requirements
+       ```bash
+       python -m venv venv
+    
+       # On Windows
+       .\venv\Scripts\activate
+       
+       # On macOS/Linux
+       source venv/bin/activate
+   
+      ```bash
+      pip install -r requirements.txt
+
+##Software Requirements
 Operating System: Windows 10/11, macOS 10.15+, or Linux (Ubuntu 20.04+)
 
 Python Version: 3.12.12 (virtual environment recommended)
