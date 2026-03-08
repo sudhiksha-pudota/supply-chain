@@ -1,0 +1,15 @@
+tensorflow
+pandas
+numpy
+scikit-learn
+tensorboard
+matplotlib
+streamlit
+scikeras
+ipykernel
+seaborn
+pytrends
+opencv_python_headless
+gdown
+plotly
+datetime
