@@ -1,12 +1,10 @@
 # Walmart Sales Forecasting System
 
-[![Streamlit App](https://supply-chain-rappczqchvo9v9elnfdgopg.streamlit.app/)](https://supply-chain-rappczqchvo9v9elnfdgopg.streamlit.app/)
+https://supply-chain-rappczqchvo9v9elnfdgopg.streamlit.app/
 
 ## 📌Overview
 
 This project presents a comprehensive **Sales Forecasting System** designed for a retail giant like Walmart. It moves beyond traditional one-size-fits-all forecasting by developing and comparing department-specific models. The system provides an interactive dashboard to visualize forecasts, analyze model performance, and quantify the financial impact of prediction accuracy on inventory costs.
-
-This work was developed as part of the **AI Career for Women (AICW) Science Hub** project.
 
 ##  Core Features
 
@@ -74,7 +72,8 @@ A multi-page Streamlit application for deep-dive analysis:
    ```bash
    git clone https://github.com/sudhiksha-pudota/supply-chain.git
    cd supply-chain
-   # Create virtual environment
+2.**Create virtual environment**
+   ```bash
     python -m venv venv
     
     # On Windows
