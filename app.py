@@ -1067,7 +1067,7 @@ elif page == "Outlier Detection":
 # ============================================
 elif page == "Inventory Impact":
     st.header("Forecast Error Impact on Inventory")
-    st.markdown("Based on your actual model performance")
+    st.markdown("Based on actual model performance")
     
     # User-adjustable parameters
     with st.sidebar.expander("Inventory Parameters", expanded=False):
@@ -1140,7 +1140,7 @@ elif page == "Business Value":
     best_error = total_sales * (best_mape / 100)
     savings = current_error - best_error
     
-    tab1, tab2, tab3 = st.tabs(["Current Impact", "Improvement Potential", "Department Focus"])
+    tab1, tab2 = st.tabs(["Current Impact", "Improvement Potential"])
     
     with tab1:
         st.subheader("Current State - Naive Forecast")
@@ -1202,37 +1202,6 @@ elif page == "Business Value":
             st.markdown("### Model Impact")
             for _, row in model_counts.iterrows():
                 st.metric(row['Model'], f"{row['Count']} departments")
-    
-    with tab3:
-        st.subheader("High-Impact Departments")
-        
-        # Use improvement potential
-        potential = calculate_improvement_potential()
-        top_potential = potential.nlargest(10, 'Potential_Savings')
-        
-        st.dataframe(
-            top_potential[['Store', 'Dept', 'MAPE_Naive', 'MAPE_Best', 
-                          'Potential_Savings']].round(1),
-            use_container_width=True
-        )
-        
-        total_potential = top_potential['Potential_Savings'].sum()
-        st.success(f"Top 10 departments represent ${total_potential:,.0f} in potential savings")
-        
-        # ROI calculation
-        implementation_cost = st.number_input("Implementation Cost ($)", 
-                                             min_value=100000, 
-                                             value=500000, 
-                                             step=50000)
-        
-        roi = ((savings - implementation_cost) / implementation_cost) * 100
-        payback = implementation_cost / (savings/12) if savings > 0 else float('inf')
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            st.metric("Projected ROI", f"{roi:.0f}%")
-        with col2:
-            st.metric("Payback Period", f"{payback:.1f} months")
 
 # ============================================
 # PAGE 6: PERFORMANCE REPORTS
@@ -1321,3 +1290,4 @@ st.markdown(
     unsafe_allow_html=True
 
 )
+
