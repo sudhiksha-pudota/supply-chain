@@ -1296,7 +1296,7 @@ elif page == "Outlier Detection":
                         f"{len(selected_depts) if selected_depts else 'all'} departments")
                     
                     # Create two columns for the filtered charts
-                    chart_col1, chart_col2 = st.columns(2)
+                    chart_col1, chart_col2 = st.columns([1, 2])
                     
                     with chart_col1:
                         # Pie chart for filtered data
@@ -1317,84 +1317,97 @@ elif page == "Outlier Detection":
                             color_discrete_sequence=px.colors.qualitative.Set3,
                             hole=0.3  # Make it a donut chart for visual distinction
                         )
+                        # Update legend to be horizontal and positioned below the chart
+                        fig_filtered.update_layout(
+                            legend=dict(
+                                orientation="h",      # Horizontal orientation
+                                yanchor="top",        # Anchor point for vertical positioning
+                                y=-0.2,               # Position below the chart (negative value puts it below)
+                                xanchor="center",     # Center the legend horizontally
+                                x=0.5                 # Center position
+                            ),
+                            # Optional: Adjust margins to prevent legend from being cut off
+                            margin=dict(t=50, b=100)  # Increase bottom margin to accommodate legend
+                        )
+
                         st.plotly_chart(fig_filtered, use_container_width=True)
                     
-                    # ===== MODIFIED: Causes by Month (NOW BASED ON FILTERED DATA) =====
-                    st.markdown("### Causes by Month (Based on Selected Filters)")
-                    
-                    if 'Month' in filtered_outliers.columns and len(filtered_outliers) > 0:
-                        # Add month names
-                        month_names = {
-                            1: 'Jan', 2: 'Feb', 3: 'Mar', 4: 'Apr', 5: 'May', 6: 'Jun',
-                            7: 'Jul', 8: 'Aug', 9: 'Sep', 10: 'Oct', 11: 'Nov', 12: 'Dec'
-                        }
-                        filtered_outliers['Month_Name'] = filtered_outliers['Month'].map(month_names)
+                    with chart_col2:
+                        # ===== MODIFIED: Causes by Month (NOW BASED ON FILTERED DATA) =====
                         
-                        # Create a DataFrame with counts by month and cause
-                        month_cause_counts = filtered_outliers.groupby(['Month_Name', 'Cause']).size().reset_index(name='Count')
-                        
-                        # Define month order for sorting
-                        month_order = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-                                    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-                        
-                        # Convert Month_Name to categorical with proper order
-                        month_cause_counts['Month_Name'] = pd.Categorical(
-                            month_cause_counts['Month_Name'], 
-                            categories=month_order, 
-                            ordered=True
-                        )
-                        
-                        # Sort by month
-                        month_cause_counts = month_cause_counts.sort_values('Month_Name')
-                        
-                        # Create stacked bar chart
-                        fig_stacked = px.bar(
-                            month_cause_counts,
-                            x='Month_Name',
-                            y='Count',
-                            color='Cause',
-                            title="Outlier Counts by Month and Cause (Stacked)",
-                            barmode='stack',
-                            color_discrete_sequence=px.colors.qualitative.Set3,
-                            text='Count'  # Show values on bars
-                        )
-                        
-                        # Customize the chart
-                        fig_stacked.update_layout(
-                            xaxis_title="Month",
-                            yaxis_title="Number of Outliers",
-                            legend_title="Cause",
-                            hovermode='x unified',
-                            xaxis={'categoryorder': 'array', 'categoryarray': month_order}
-                        )
-                        
-                        # Add value labels on bars
-                        fig_stacked.update_traces(
-                            textposition='inside',
-                            textfont_size=10,
-                            insidetextanchor='middle'
-                        )
-                        
-                        st.plotly_chart(fig_stacked, use_container_width=True)
-                        
-                        # Add total count annotation
-                        total_outliers = len(filtered_outliers)
-                        st.caption(f"Total outliers in selection: {total_outliers} | Bars show stacked counts by cause")
+                        if 'Month' in filtered_outliers.columns and len(filtered_outliers) > 0:
+                            # Add month names
+                            month_names = {
+                                1: 'Jan', 2: 'Feb', 3: 'Mar', 4: 'Apr', 5: 'May', 6: 'Jun',
+                                7: 'Jul', 8: 'Aug', 9: 'Sep', 10: 'Oct', 11: 'Nov', 12: 'Dec'
+                            }
+                            filtered_outliers['Month_Name'] = filtered_outliers['Month'].map(month_names)
+                            
+                            # Create a DataFrame with counts by month and cause
+                            month_cause_counts = filtered_outliers.groupby(['Month_Name', 'Cause']).size().reset_index(name='Count')
+                            
+                            # Define month order for sorting
+                            month_order = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                                        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+                            
+                            # Convert Month_Name to categorical with proper order
+                            month_cause_counts['Month_Name'] = pd.Categorical(
+                                month_cause_counts['Month_Name'], 
+                                categories=month_order, 
+                                ordered=True
+                            )
+                            
+                            # Sort by month
+                            month_cause_counts = month_cause_counts.sort_values('Month_Name')
+                            
+                            # Create stacked bar chart
+                            fig_stacked = px.bar(
+                                month_cause_counts,
+                                x='Month_Name',
+                                y='Count',
+                                color='Cause',
+                                title="Outlier Counts by Month and Cause (Stacked)",
+                                barmode='stack',
+                                color_discrete_sequence=px.colors.qualitative.Set3,
+                                text='Count'  # Show values on bars
+                            )
 
-                        # Add a table view for precise numbers
-                        with st.expander("View Data Table"):
-                            # Pivot the data for table display
-                            pivot_table = month_cause_counts.pivot(
-                                index='Month_Name', 
-                                columns='Cause', 
-                                values='Count'
-                            ).fillna(0).astype(int)
-                            
-                            # Add total row
-                            pivot_table.loc['Total'] = pivot_table.sum()
-                            
-                            st.dataframe(pivot_table, use_container_width=True)
-                    
+                            # Customize the chart
+                            fig_stacked.update_layout(
+                                xaxis_title="Month",
+                                yaxis_title="Number of Outliers",
+                                legend_title="Cause",
+                                hovermode='x unified',
+                                xaxis={'categoryorder': 'array', 'categoryarray': month_order},
+                                # Make legend horizontal and position it below
+                                legend=dict(
+                                    orientation="h",      # Horizontal orientation
+                                    yanchor="top",        # Anchor point for vertical positioning
+                                    y=-0.3,               # Position below the chart (negative value puts it below)
+                                    xanchor="center",     # Center the legend horizontally
+                                    x=0.5,                # Center position
+                                    title=dict(
+                                        text="Cause: ",   # Optional: add "Cause:" before the legend items
+                                        side="top"        # Position the title above the legend items
+                                    )
+                                ),
+                                # Adjust margins to prevent legend from being cut off
+                                margin=dict(t=50, b=150)  # Increase bottom margin to accommodate legend
+                            )
+
+                            # Add value labels on bars
+                            fig_stacked.update_traces(
+                                textposition='inside',
+                                textfont_size=10,
+                                insidetextanchor='middle'
+                            )
+
+                            st.plotly_chart(fig_stacked, use_container_width=True)
+                            # Add total count annotation
+                            total_outliers = len(filtered_outliers)
+                            st.caption(f"Total outliers in selection: {total_outliers} | Bars show stacked counts by cause")
+
+                        
                     # ===== EXISTING: Recommendations (based on filtered data) =====
                     st.markdown("### Recommendations by Cause Type")
                     
