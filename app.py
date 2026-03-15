@@ -10,6 +10,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from datetime import datetime, timedelta
+from scipy import stats
 import os
 import gdown
 import pickle
@@ -85,7 +86,7 @@ st.markdown('<p class="main-header">Walmart Sales Forecasting System</p>', unsaf
 st.markdown('<p class="sub-header">Data-Driven Insights • Model Performance • Business Impact</p>', unsafe_allow_html=True)
 
 # ============================================
-# LOAD DATA
+# LOAD ACTUAL DATA
 # ============================================
 
 @st.cache_data
@@ -138,7 +139,7 @@ def load_data():
         download_file(data_id, data_path)
         data = pd.read_csv(data_path)
         
-        # Feature importance
+        # Feature importance (if exists)
         try:
             download_file(features_id, features_path)
             features = pd.read_csv(features_path)
@@ -161,7 +162,7 @@ if df is None:
     st.stop()
 
 # ============================================
-# HELPER FUNCTIONS 
+# HELPER FUNCTIONS (REAL CALCULATIONS)
 # ============================================
 @st.cache_data
 def calculate_department_stats():
@@ -878,25 +879,47 @@ elif page == "Forecast Predictor":
 
 
 # ============================================
-# PAGE 3: OUTLIER DETECTION
+# PAGE 3: OUTLIER DETECTION (REAL)
 # ============================================
 elif page == "Outlier Detection":
-    st.header("Statistical Outlier Detection")
-    st.markdown("Finding departments with unusual sales patterns")
+    st.header("Statistical Outlier Detection & Cause Analysis")
+    st.markdown("Finding departments with unusual sales patterns and understanding why")
     
-    # Show outlier summary
+    # Ensure date is datetime and create necessary columns
+    df['Date'] = pd.to_datetime(df['Date'], format="%d/%m/%Y")
+    
+    # Create month column if it doesn't exist
+    if 'Month' not in df.columns:
+        df['Month'] = df['Date'].dt.month
+    
+    # Add tabs for different analysis views
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+        "Explore Outliers", 
+        "Compare Patterns", 
+        "Business Impact",
+        "Cause Analysis",  # NEW TAB
+        "Root Causes"      # NEW TAB
+    ])
+    
+    # Calculate outlier stats (existing code)
     outlier_depts = dept_stats[dept_stats['Is_Outlier'] == True]
     
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("Total Departments", len(dept_stats))
-    with col2:
-        st.metric("Outliers Detected", len(outlier_depts))
-    with col3:
-        st.metric("Percentage", f"{len(outlier_depts)/len(dept_stats)*100:.1f}%")
+    # Add weekly outlier detection to df if not already present
+    if 'Is_Weekly_Outlier' not in df.columns:
+        # Calculate weekly outliers within each department
+        df['Weekly_Z_Dept'] = df.groupby(['Store', 'Dept'])['Weekly_Sales'].transform(
+            lambda x: (x - x.mean()) / x.std() if x.std() > 0 else 0
+        )
+        df['Is_Weekly_Outlier'] = abs(df['Weekly_Z_Dept']) > 2
     
-    tab1, tab2, tab3 = st.tabs(["Explore Outliers", "Compare Patterns", "Business Impact"])
+    # Calculate z-scores for economic factors if needed
+    for col in ['Temperature', 'Fuel_Price', 'CPI', 'Unemployment']:
+        if col in df.columns and f'{col}_Z' not in df.columns:
+            df[f'{col}_Z'] = df.groupby('Store')[col].transform(
+                lambda x: (x - x.mean()) / x.std() if x.std() > 0 else 0
+            )
     
+    # ===== TAB 1: EXPLORE OUTLIERS (existing, enhanced) =====
     with tab1:
         st.subheader("Departments with Unusual Sales Patterns")
         
@@ -908,7 +931,8 @@ elif page == "Outlier Detection":
             selected = st.selectbox(
                 "Select an outlier department to analyze",
                 [f"Store {row['Store']}, Dept {row['Dept']} (Mean: ${row['Mean']:,.0f}, Z={row['Z_Score']:.1f})" 
-                 for _, row in outlier_depts_sorted.iterrows()]
+                 for _, row in outlier_depts_sorted.iterrows()],
+                key="outlier_select"
             )
             
             # Parse selection
@@ -916,115 +940,99 @@ elif page == "Outlier Detection":
             dept = int(selected.split('Dept ')[1].split(' ')[0])
             
             dept_data = df[(df['Store'] == store) & (df['Dept'] == dept)].copy()
-                
-            fig = px.line(dept_data, x='Date', y='Weekly_Sales',
-                          title=f"Store {store}, Dept {dept} - Sales Pattern")
-                
+            dept_data = dept_data.sort_values('Date')
             
+            # Create figure with outlier highlighting
+            fig = go.Figure()
+            
+            # Add main line
+            fig.add_trace(go.Scatter(
+                x=dept_data['Date'], 
+                y=dept_data['Weekly_Sales'],
+                mode='lines',
+                name='Sales',
+                line=dict(color='#0078D7', width=2)
+            ))
+            
+            # Highlight outliers
+            if 'Is_Weekly_Outlier' in dept_data.columns:
+                outliers = dept_data[dept_data['Is_Weekly_Outlier'] == True]
+                if not outliers.empty:
+                    fig.add_trace(go.Scatter(
+                        x=outliers['Date'], 
+                        y=outliers['Weekly_Sales'],
+                        mode='markers',
+                        name='Outliers',
+                        marker=dict(color='red', size=10, symbol='circle'),
+                        hovertemplate='<b>Outlier</b><br>Date: %{x}<br>Sales: $%{y:,.0f}<br>Z-Score: %{customdata:.2f}<extra></extra>',
+                        customdata=outliers['Weekly_Z_Dept'] if 'Weekly_Z_Dept' in outliers.columns else None
+                    ))
+            
+            fig.update_layout(
+                title=f"Store {store}, Dept {dept} - Sales with Outliers Highlighted",
+                xaxis_title="Date",
+                yaxis_title="Weekly Sales ($)",
+                hovermode='x unified'
+            )
+            
+            st.plotly_chart(fig, use_container_width=True)
+            
+            # Department statistics (existing)
             stats = dept_stats[(dept_stats['Store'] == store) & 
-                                  (dept_stats['Dept'] == dept)].iloc[0]
-                
-            st.markdown("### Department Statistics")
+                              (dept_stats['Dept'] == dept)].iloc[0]
             
+            st.markdown("### Department Statistics")
             col1, col2, col3, col4, col5 = st.columns(5)
             
             with col1:
                 st.metric("Average Sales", f"${stats['Mean']:,.0f}")
-
             with col2:
-                st.metric("Standard Deviation", f"${stats['Std']:,.0f}")
-            
+                st.metric("Std Deviation", f"${stats['Std']:,.0f}")
             with col3:
                 st.metric("Max Sales", f"${stats['Max']:,.0f}")
-            
             with col4:
                 st.metric("Min Sales", f"${stats['Min']:,.0f}")
-            
             with col5:
                 st.metric("Z-Score", f"{stats['Z_Score']:.2f}")
-            
-            # Highlight weekly outliers within this department
-            q1 = dept_data['Weekly_Sales'].quantile(0.25)
-            q3 = dept_data['Weekly_Sales'].quantile(0.75)
-            iqr = q3 - q1
-            upper = q3 + 1.5 * iqr
-                
-            weekly_outliers = dept_data[dept_data['Weekly_Sales'] > upper]
-            if not weekly_outliers.empty:
-                fig.add_scatter(x=weekly_outliers['Date'], y=weekly_outliers['Weekly_Sales'],
-                                mode='markers', name='Weekly Outliers',
-                                marker=dict(color='red', size=10))
-                
-            st.plotly_chart(fig, use_container_width=True)
-            
-            col1, col2 = st.columns(2)
 
-            with col1:
-                dept_data = df[(df['Store'] == store) & (df['Dept'] == dept)].copy()
-                dept_data['Date'] = pd.to_datetime(dept_data['Date'], format = "%d/%m/%Y")
-
-                if len(dept_data) > 0:
-                    # Monthly pattern
-                    dept_data['Month'] = dept_data['Date'].dt.month
-                    monthly = dept_data.groupby('Month')['Weekly_Sales'].mean().reset_index()
-                        
-                    month_labels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-                                    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-
-                    fig = px.line(
-                        monthly,
-                        x='Month',
-                        y='Weekly_Sales',
-                        title="Average Monthly Pattern",
-                    )
-                    fig.add_vrect(x0=11, x1=12, fillcolor="red", opacity=0.2, line_width=0, annotation_text="Holiday Season")
-                    fig.update_xaxes(
-                        tickmode = 'array',
-                        tickvals = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
-                        ticktext = month_labels
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
-                else:
-                    st.warning("No historical data available for this department")
-            
-            with col2:
-                # Box plot comparison
-                non_holiday_data = dept_data[dept_data['IsHoliday'] == 0]['Weekly_Sales']
-                holiday_data = dept_data[dept_data['IsHoliday'] == 1]['Weekly_Sales']       
-
-                comp_df = pd.DataFrame({
-                    'Sales': pd.concat([non_holiday_data, holiday_data]),
-                    'Holidays': ['Non-Holiday'] * len(non_holiday_data) + ['Holiday'] * len(holiday_data)
-                })
-                
-                fig = px.box(comp_df, x='Holidays', y='Sales', color='Holidays',
-                            title="Holiday vs Non-Holiday Sales")
-                st.plotly_chart(fig, use_container_width=True)
-
-        else:
-            st.info("No statistical outliers found in your data")
+            # Summary metrics
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("Total Departments", len(dept_stats))
+        with col2:
+            st.metric("Dept-Level Outliers", len(outlier_depts))
+        with col3:
+            weekly_outliers = df['Is_Weekly_Outlier'].sum() if 'Is_Weekly_Outlier' in df.columns else 0
+            st.metric("Weekly Outliers", f"{weekly_outliers:,}")
+        with col4:
+            outlier_rate = df['Is_Weekly_Outlier'].mean() * 100 if 'Is_Weekly_Outlier' in df.columns else 0
+            st.metric("Outlier Rate", f"{outlier_rate:.1f}%")
     
+    # ===== TAB 2: COMPARE PATTERNS (existing) =====
     with tab2:
         st.subheader("Outlier vs Normal Department Comparison")
         
         if not outlier_depts.empty:
-            # Pick a random normal department for comparison
             normal_depts = dept_stats[dept_stats['Is_Outlier'] == False]
             
             if not normal_depts.empty:
                 col1, col2 = st.columns(2)
                 
+                # Outlier sample
+                outlier_sample = outlier_depts.sample(1).iloc[0]
                 with col1:
-                    outlier_sample = outlier_depts.sample(1).iloc[0]
                     st.markdown(f"**Outlier:** Store {outlier_sample['Store']}, Dept {outlier_sample['Dept']}")
                     st.metric("Mean Sales", f"${outlier_sample['Mean']:,.0f}")
                     st.metric("Std Dev", f"${outlier_sample['Std']:,.0f}")
+                    st.metric("CV", f"{outlier_sample['Std']/outlier_sample['Mean']:.2f}")
                 
+                # Normal sample
+                normal_sample = normal_depts.sample(1).iloc[0]
                 with col2:
-                    normal_sample = normal_depts.sample(1).iloc[0]
                     st.markdown(f"**Normal:** Store {normal_sample['Store']}, Dept {normal_sample['Dept']}")
                     st.metric("Mean Sales", f"${normal_sample['Mean']:,.0f}")
                     st.metric("Std Dev", f"${normal_sample['Std']:,.0f}")
+                    st.metric("CV", f"{normal_sample['Std']/normal_sample['Mean']:.2f}")
                 
                 # Box plot comparison
                 outlier_data = df[(df['Store'] == outlier_sample['Store']) & 
@@ -1034,40 +1042,448 @@ elif page == "Outlier Detection":
                 
                 comp_df = pd.DataFrame({
                     'Sales': pd.concat([outlier_data, normal_data]),
-                    'Type': ['Outlier'] * len(outlier_data) + ['Normal'] * len(normal_data)
+                    'Type': ['Outlier Dept'] * len(outlier_data) + ['Normal Dept'] * len(normal_data)
                 })
                 
                 fig = px.box(comp_df, x='Type', y='Sales', color='Type',
-                            title="Sales Distribution Comparison")
+                            title="Sales Distribution Comparison",
+                            color_discrete_map={'Outlier Dept': '#FF4444', 'Normal Dept': '#0078D7'})
                 st.plotly_chart(fig, use_container_width=True)
     
+    # ===== TAB 3: BUSINESS IMPACT (existing) =====
     with tab3:
         st.subheader("Business Impact of Outliers")
         
         # Calculate impact
-        outlier_impact = inventory_impact[inventory_impact['Store'].isin(outlier_depts['Store']) &
-                                         inventory_impact['Dept'].isin(outlier_depts['Dept'])]
+        if 'inventory_impact' in locals():
+            outlier_impact = inventory_impact[
+                inventory_impact['Store'].isin(outlier_depts['Store']) &
+                inventory_impact['Dept'].isin(outlier_depts['Dept'])
+            ]
+            
+            normal_impact = inventory_impact[
+                ~inventory_impact['Store'].isin(outlier_depts['Store']) |
+                ~inventory_impact['Dept'].isin(outlier_depts['Dept'])
+            ]
+            
+            if not outlier_impact.empty and not normal_impact.empty:
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.metric("Avg Error Cost - Outliers", 
+                             f"${outlier_impact['Total_Impact'].mean():,.0f}")
+                with col2:
+                    st.metric("Avg Error Cost - Normal", 
+                             f"${normal_impact['Total_Impact'].mean():,.0f}",
+                             delta=f"${outlier_impact['Total_Impact'].mean() - normal_impact['Total_Impact'].mean():,.0f}")
+                
+                st.info("Outlier departments have significantly higher forecast error costs and need specialized attention")
+    
+    # ===== NEW TAB 4: CAUSE ANALYSIS =====
+    with tab4:
+        st.subheader("What Causes Outliers?")
+        st.markdown("Statistical analysis of factors that trigger outlier events")
         
-        normal_impact = inventory_impact[~inventory_impact['Store'].isin(outlier_depts['Store']) |
-                                        ~inventory_impact['Dept'].isin(outlier_depts['Dept'])]
-        
+        # Select department for cause analysis
         col1, col2 = st.columns(2)
         with col1:
-            st.metric("Avg Error Cost - Outliers", 
-                     f"${outlier_impact['Total_Impact'].mean():,.0f}")
+            store_cause = st.selectbox(
+                "Select Store", 
+                sorted(df['Store'].unique()),
+                key="cause_store"
+            )
         with col2:
-            st.metric("Avg Error Cost - Normal", 
-                     f"${normal_impact['Total_Impact'].mean():,.0f}",
-                     delta=f"${outlier_impact['Total_Impact'].mean() - normal_impact['Total_Impact'].mean():,.0f}")
+            dept_options = sorted(df[df['Store'] == store_cause]['Dept'].unique())
+            dept_cause = st.selectbox(
+                "Select Department", 
+                dept_options,
+                key="cause_dept"
+            )
         
-        st.info("Outlier departments have significantly higher forecast error costs and need specialized attention")
+        # Filter data for selected department
+        dept_cause_data = df[
+            (df['Store'] == store_cause) & 
+            (df['Dept'] == dept_cause)
+        ].copy()
+        
+        if not dept_cause_data.empty:
+            dept_cause_data = dept_cause_data.sort_values('Date')
+            
+            # 1. Feature comparison: Outlier vs Normal weeks
+            st.markdown("### Feature Comparison: Outlier vs Normal Weeks")
+            
+            if 'Is_Weekly_Outlier' in dept_cause_data.columns:
+                outlier_weeks = dept_cause_data[dept_cause_data['Is_Weekly_Outlier'] == True]
+                normal_weeks = dept_cause_data[dept_cause_data['Is_Weekly_Outlier'] == False]
+                
+                if len(outlier_weeks) > 0 and len(normal_weeks) > 0:
+                    # Compare means
+                    features = ['Temperature', 'Fuel_Price', 'CPI', 'Unemployment']
+                    available_features = [f for f in features if f in dept_cause_data.columns]
+                    
+                    if available_features:
+                        comparison = pd.DataFrame({
+                            'Feature': available_features,
+                            'Outlier Weeks': [outlier_weeks[f].mean() for f in available_features],
+                            'Normal Weeks': [normal_weeks[f].mean() for f in available_features]
+                        })
+                        
+                        # Melt for plotting
+                        comparison_melted = comparison.melt(id_vars=['Feature'], 
+                                                            var_name='Week Type', 
+                                                            value_name='Value')
+                        
+                        fig = px.bar(comparison_melted, 
+                                    x='Feature', 
+                                    y='Value', 
+                                    color='Week Type',
+                                    barmode='group',
+                                    title="Average Feature Values: Outlier vs Normal Weeks",
+                                    color_discrete_map={'Outlier Weeks': '#FF4444', 'Normal Weeks': '#0078D7'})
+                        st.plotly_chart(fig, use_container_width=True)
+                        
+                        # Statistical significance
+                        st.markdown("### Statistical Significance")
+                        st.markdown("T-test results (p-value < 0.05 indicates significant difference):")
+                        
+                        sig_data = []
+                        for f in available_features:
+                            if len(outlier_weeks[f].dropna()) > 0 and len(normal_weeks[f].dropna()) > 0:
+                                from scipy import stats
+                                t_stat, p_val = stats.ttest_ind(
+                                    outlier_weeks[f].dropna(), 
+                                    normal_weeks[f].dropna()
+                                )
+                                sig_data.append({
+                                    'Feature': f,
+                                    'T-Statistic': f'{t_stat:.3f}',
+                                    'P-Value': f'{p_val:.4f}',
+                                    'Significant': '✅ Yes' if p_val < 0.05 else '❌ No'
+                                })
+                        
+                        if sig_data:
+                            st.dataframe(pd.DataFrame(sig_data), use_container_width=True)
+            
+            # 2. Holiday impact
+            st.markdown("### Holiday Impact on Outliers")
+            
+            if 'Is_Weekly_Outlier' in dept_cause_data.columns and 'IsHoliday' in dept_cause_data.columns:
+                holiday_outlier_rate = dept_cause_data.groupby('IsHoliday')['Is_Weekly_Outlier'].mean() * 100
+                
+                fig = px.bar(
+                    x=['Non-Holiday', 'Holiday'],
+                    y=[holiday_outlier_rate.get(0, 0), holiday_outlier_rate.get(1, 0)],
+                    color=['Non-Holiday', 'Holiday'],
+                    color_discrete_map={'Non-Holiday': '#0078D7', 'Holiday': '#FF4444'},
+                    title="Outlier Rate by Holiday Status",
+                    labels={'x': '', 'y': 'Outlier Rate (%)'}
+                )
+                st.plotly_chart(fig, use_container_width=True)
+            
+            # 3. Correlation heatmap
+            st.markdown("### Correlation with Outlier Occurrence")
+            
+            if 'Is_Weekly_Outlier' in dept_cause_data.columns:
+                corr_features = ['Temperature', 'Fuel_Price', 'CPI', 'Unemployment', 'IsHoliday']
+                available_corr = [f for f in corr_features if f in dept_cause_data.columns]
+                
+                if available_corr:
+                    corr_data = dept_cause_data[available_corr + ['Is_Weekly_Outlier']].copy()
+                    
+                    # Convert IsHoliday to numeric for correlation
+                    if 'IsHoliday' in corr_data.columns:
+                        corr_data['IsHoliday'] = corr_data['IsHoliday'].astype(int)
+                    
+                    corr_matrix = corr_data.corr()
+                    
+                    fig = px.imshow(
+                        corr_matrix,
+                        text_auto='.2f',
+                        color_continuous_scale='RdBu_r',
+                        title="Correlation Matrix - What's Related to Outliers?",
+                        aspect="auto"
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+                    
+                    # Highlight correlation with outlier
+                    if 'Is_Weekly_Outlier' in corr_matrix.columns:
+                        outlier_corr = corr_matrix['Is_Weekly_Outlier'].drop('Is_Weekly_Outlier').sort_values(ascending=False)
+                        
+                        st.markdown("**Top factors correlated with outliers:**")
+                        for feat, corr_val in outlier_corr.items():
+                            strength = "Strong" if abs(corr_val) > 0.3 else "Moderate" if abs(corr_val) > 0.1 else "Weak"
+                            direction = "positive" if corr_val > 0 else "negative"
+                            st.markdown(f"- **{feat}**: {corr_val:.3f} ({strength} {direction} correlation)")
+    
+    # ===== NEW TAB 5: ROOT CAUSES =====
+    with tab5:
+        st.subheader("Root Cause Categorization")
+        st.markdown("Categorizing outliers by their underlying causes")
+        
+        # Create month column if it doesn't exist (already done at the top)
+        
+        # Categorize outliers for all departments
+        @st.cache_data
+        def categorize_all_outliers(data):
+            """Categorize outliers by cause"""
+            # Make a copy to avoid modifying original
+            df_copy = data.copy()
+            
+            # Ensure we have the required columns
+            if 'Month' not in df_copy.columns and 'Date' in df_copy.columns:
+                df_copy['Month'] = pd.to_datetime(df_copy['Date']).dt.month
+            
+            # Get outlier data
+            if 'Is_Weekly_Outlier' not in df_copy.columns:
+                return pd.DataFrame()
+            
+            outlier_data = df_copy[df_copy['Is_Weekly_Outlier'] == True].copy()
+            
+            if len(outlier_data) == 0:
+                return pd.DataFrame()
+            
+            # Initialize cause column
+            outlier_data['Cause'] = 'Unknown'
+            
+            # Holiday-driven outliers
+            if 'IsHoliday' in outlier_data.columns:
+                holiday_mask = outlier_data['IsHoliday'] == 1
+                outlier_data.loc[holiday_mask, 'Cause'] = 'Holiday-Driven'
+            
+            # Economic factor driven (using z-scores)
+            for col in ['Fuel_Price', 'CPI', 'Unemployment']:
+                if col in outlier_data.columns:
+                    z_col = f'{col}_Z'
+                    if z_col not in outlier_data.columns and col in df_copy.columns:
+                        # Calculate z-score if not present
+                        outlier_data[z_col] = outlier_data.groupby('Store')[col].transform(
+                            lambda x: (x - x.mean()) / x.std() if x.std() > 0 else 0
+                        )
+                    
+                    if z_col in outlier_data.columns:
+                        # Mark outliers driven by extreme economic values
+                        economic_mask = (abs(outlier_data[z_col]) > 2) & (outlier_data['Cause'] == 'Unknown')
+                        outlier_data.loc[economic_mask, 'Cause'] = f'{col} Shock'
+            
+            # Seasonal (November-December)
+            if 'Month' in outlier_data.columns:
+                seasonal_mask = (outlier_data['Month'].isin([11, 12])) & (outlier_data['Cause'] == 'Unknown')
+                outlier_data.loc[seasonal_mask, 'Cause'] = 'Seasonal Peak'
+            
+            # Temperature extremes
+            if 'Temperature' in outlier_data.columns:
+                temp_z_col = 'Temperature_Z'
+                if temp_z_col not in outlier_data.columns:
+                    outlier_data[temp_z_col] = outlier_data.groupby('Store')['Temperature'].transform(
+                        lambda x: (x - x.mean()) / x.std() if x.std() > 0 else 0
+                    )
+                
+                temp_mask = (abs(outlier_data[temp_z_col]) > 2) & (outlier_data['Cause'] == 'Unknown')
+                outlier_data.loc[temp_mask, 'Cause'] = 'Temperature Extreme'
+            
+            return outlier_data
+        
+        # Call the function with proper error handling
+        try:
+            categorized_outliers = categorize_all_outliers(df)
+            
+            if categorized_outliers is not None and len(categorized_outliers) > 0:
+                # Overall cause distribution
+                st.markdown("### Overall Outlier Cause Distribution")
+                
+                cause_counts = categorized_outliers['Cause'].value_counts()
+                cause_pct = categorized_outliers['Cause'].value_counts(normalize=True) * 100
+                
+                cause_df = pd.DataFrame({
+                    'Cause': cause_counts.index,
+                    'Count': cause_counts.values,
+                    'Percentage': cause_pct.values
+                })
+                
+                col1, col2 = st.columns([1, 1])
+                
+                with col1:
+                    fig = px.pie(
+                        cause_df, 
+                        values='Count', 
+                        names='Cause',
+                        title="What Causes Outliers?",
+                        color_discrete_sequence=px.colors.qualitative.Set3
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+                
+                with col2:
+                    st.dataframe(cause_df, use_container_width=True)
+                
+                # Department-level cause analysis
+                st.markdown("### Department-Level Primary Causes")
+                
+                # Get primary cause for each department
+                dept_primary = categorized_outliers.groupby(['Store', 'Dept']).agg({
+                    'Cause': lambda x: x.mode()[0] if len(x.mode()) > 0 else 'Unknown',
+                    'Is_Weekly_Outlier': 'count'
+                }).reset_index()
+                dept_primary.columns = ['Store', 'Dept', 'Primary_Cause', 'Outlier_Count']
+                
+                # Sort by outlier count
+                dept_primary = dept_primary.sort_values('Outlier_Count', ascending=False)
+                
+                # Let user explore
+                selected_cause = st.selectbox(
+                    "Filter by primary cause",
+                    ['All'] + list(dept_primary['Primary_Cause'].unique())
+                )
+                
+                if selected_cause != 'All':
+                    filtered_depts = dept_primary[dept_primary['Primary_Cause'] == selected_cause]
+                else:
+                    filtered_depts = dept_primary
+                
+                st.dataframe(
+                    filtered_depts.head(20),
+                    column_config={
+                        "Store": "Store",
+                        "Dept": "Department",
+                        "Primary_Cause": "Main Cause",
+                        "Outlier_Count": "Number of Outliers"
+                    },
+                    use_container_width=True
+                )
+                
+                # Time-based cause patterns
+                st.markdown("### Causes by Month")
+                
+                if 'Month' in categorized_outliers.columns:
+                    # Add month names
+                    month_names = {
+                        1: 'Jan', 2: 'Feb', 3: 'Mar', 4: 'Apr', 5: 'May', 6: 'Jun',
+                        7: 'Jul', 8: 'Aug', 9: 'Sep', 10: 'Oct', 11: 'Nov', 12: 'Dec'
+                    }
+                    categorized_outliers['Month_Name'] = categorized_outliers['Month'].map(month_names)
+                    
+                    # Create heatmap data
+                    cause_month = pd.crosstab(
+                        categorized_outliers['Month_Name'], 
+                        categorized_outliers['Cause'],
+                        normalize='index'
+                    ) * 100
+                    
+                    # Sort months
+                    month_order = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                                  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+                    cause_month = cause_month.reindex(month_order)
+                    
+                    fig = px.imshow(
+                        cause_month,
+                        text_auto='.0f',
+                        color_continuous_scale='YlOrRd',
+                        title="Outlier Causes by Month (%)",
+                        labels=dict(x="Cause", y="Month", color="Percentage"),
+                        aspect="auto"
+                    )
+                    fig.update_xaxes(side="bottom")
+                    st.plotly_chart(fig, use_container_width=True)
+                
+                # Recommendations based on causes
+                st.markdown("### Recommendations by Cause Type")
+                
+                cause_recs = {
+                    'Holiday-Driven': {
+                        'icon': '🎄',
+                        'recs': [
+                            'Develop holiday-specific forecast models',
+                            'Create holiday inventory buffers 2-3 weeks in advance',
+                            'Analyze historical holiday patterns separately',
+                            'Consider promotional calendars when forecasting'
+                        ]
+                    },
+                    'Fuel_Price Shock': {
+                        'icon': '⛽',
+                        'recs': [
+                            'Monitor fuel prices as early warning signal',
+                            'Incorporate fuel price elasticity in demand models',
+                            'Adjust pricing strategies when fuel spikes',
+                            'Consider fuel price in transportation cost planning'
+                        ]
+                    },
+                    'CPI Shock': {
+                        'icon': '📊',
+                        'recs': [
+                            'Track CPI changes as demand indicator',
+                            'Adjust price points based on inflation',
+                            'Review product mix when CPI shifts',
+                            'Consider economic indicators in long-term planning'
+                        ]
+                    },
+                    'Unemployment Shock': {
+                        'icon': '💼',
+                        'recs': [
+                            'Monitor local employment trends',
+                            'Adjust inventory for changing demand patterns',
+                            'Consider value-oriented products when unemployment rises',
+                            'Review staffing levels based on economic indicators'
+                        ]
+                    },
+                    'Seasonal Peak': {
+                        'icon': '📅',
+                        'recs': [
+                            'Build seasonal profiles for Q4',
+                            'Plan inventory buildup 2 months in advance',
+                            'Create seasonal staffing plans',
+                            'Develop post-holiday clearance strategies'
+                        ]
+                    },
+                    'Temperature Extreme': {
+                        'icon': '🌡️',
+                        'recs': [
+                            'Use weather forecasts in short-term planning',
+                            'Adjust category mix based on weather',
+                            'Create weather-triggered promotions',
+                            'Plan inventory for weather-sensitive products'
+                        ]
+                    },
+                    'Unknown': {
+                        'icon': '❓',
+                        'recs': [
+                            'Investigate these outliers manually',
+                            'Check for data quality issues',
+                            'Look for one-time events (closures, renovations)',
+                            'Consider external factors not in data'
+                        ]
+                    }
+                }
+                
+                # Show recommendations in columns
+                cols = st.columns(2)
+                for i, (cause, info) in enumerate(cause_recs.items()):
+                    # Handle different naming conventions
+                    matching_cause = None
+                    for existing_cause in cause_counts.index:
+                        if cause.replace('_', ' ') in existing_cause or existing_cause in cause:
+                            matching_cause = existing_cause
+                            break
+                    
+                    if matching_cause and matching_cause in cause_counts.index:
+                        with cols[i % 2]:
+                            with st.expander(f"{info['icon']} {matching_cause} ({cause_counts[matching_cause]} outliers)"):
+                                for rec in info['recs']:
+                                    st.markdown(f"- {rec}")
+            else:
+                st.info("No outliers detected in the data")
+        except Exception as e:
+            st.error(f"Error in cause analysis: {str(e)}")
+            st.info("Showing basic outlier information instead")
+            
+            # Fallback: Show basic outlier stats
+            if 'Is_Weekly_Outlier' in df.columns:
+                st.metric("Total Outliers", df['Is_Weekly_Outlier'].sum())
+                st.metric("Outlier Rate", f"{df['Is_Weekly_Outlier'].mean()*100:.1f}%")
 
 # ============================================
-# PAGE 4: INVENTORY IMPACT
+# PAGE 4: INVENTORY IMPACT (REAL)
 # ============================================
 elif page == "Inventory Impact":
     st.header("Forecast Error Impact on Inventory")
-    st.markdown("Based on actual model performance")
+    st.markdown("Based on your actual model performance")
     
     # User-adjustable parameters
     with st.sidebar.expander("Inventory Parameters", expanded=False):
@@ -1126,7 +1542,7 @@ elif page == "Inventory Impact":
     st.plotly_chart(fig, use_container_width=True)
 
 # ============================================
-# PAGE 5: BUSINESS VALUE
+# PAGE 5: BUSINESS VALUE (REAL)
 # ============================================
 elif page == "Business Value":
     st.header("Business Value of Improved Forecasting")
@@ -1140,7 +1556,7 @@ elif page == "Business Value":
     best_error = total_sales * (best_mape / 100)
     savings = current_error - best_error
     
-    tab1, tab2 = st.tabs(["Current Impact", "Improvement Potential"])
+    tab1, tab2, tab3 = st.tabs(["Current Impact", "Improvement Potential", "Department Focus"])
     
     with tab1:
         st.subheader("Current State - Naive Forecast")
@@ -1202,6 +1618,37 @@ elif page == "Business Value":
             st.markdown("### Model Impact")
             for _, row in model_counts.iterrows():
                 st.metric(row['Model'], f"{row['Count']} departments")
+    
+    with tab3:
+        st.subheader("High-Impact Departments")
+        
+        # Use improvement potential
+        potential = calculate_improvement_potential()
+        top_potential = potential.nlargest(10, 'Potential_Savings')
+        
+        st.dataframe(
+            top_potential[['Store', 'Dept', 'MAPE_Naive', 'MAPE_Best', 
+                          'Potential_Savings']].round(1),
+            use_container_width=True
+        )
+        
+        total_potential = top_potential['Potential_Savings'].sum()
+        st.success(f"Top 10 departments represent ${total_potential:,.0f} in potential savings")
+        
+        # ROI calculation
+        implementation_cost = st.number_input("Implementation Cost ($)", 
+                                             min_value=100000, 
+                                             value=500000, 
+                                             step=50000)
+        
+        roi = ((savings - implementation_cost) / implementation_cost) * 100
+        payback = implementation_cost / (savings/12) if savings > 0 else float('inf')
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("Projected ROI", f"{roi:.0f}%")
+        with col2:
+            st.metric("Payback Period", f"{payback:.1f} months")
 
 # ============================================
 # PAGE 6: PERFORMANCE REPORTS
@@ -1284,10 +1731,8 @@ st.markdown("---")
 st.markdown(
     f"""
     <div style="text-align: center; color: #666; padding: 1rem;">
-        Walmart Sales Forecasting System {datetime.now().strftime('%Y')}
+        Walmart Sales Forecasting System | Based on actual model performance analysis | {datetime.now().strftime('%Y')}
     </div>
     """, 
     unsafe_allow_html=True
-
 )
-
