@@ -275,7 +275,6 @@ page = st.sidebar.radio(
         "Forecast Predictor",
         "Outlier Detection",
         "Inventory Impact",
-        "Business Value",
         "Performance Reports",
     ]
 )
@@ -1614,114 +1613,6 @@ elif page == "Inventory Impact":
                 labels={'Total_Impact': 'Total Impact ($)'})
     st.plotly_chart(fig, use_container_width=True)
 
-# ============================================
-# PAGE 5: BUSINESS VALUE (REAL)
-# ============================================
-elif page == "Business Value":
-    st.header("Business Value of Improved Forecasting")
-    
-    # Calculate real metrics
-    total_sales = df['Weekly_Sales'].sum() * 52
-    naive_mape = results[results['Model'] == 'Naive']['MAPE'].mean()
-    best_mape = results.groupby(['Store', 'Dept'])['MAPE'].min().mean()
-    
-    current_error = total_sales * (naive_mape / 100)
-    best_error = total_sales * (best_mape / 100)
-    savings = current_error - best_error
-    
-    tab1, tab2, tab3 = st.tabs(["Current Impact", "Improvement Potential", "Department Focus"])
-    
-    with tab1:
-        st.subheader("Current State - Naive Forecast")
-        
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("Annual Sales", f"${total_sales:,.0f}")
-        with col2:
-            st.metric("Avg Forecast Error", f"{naive_mape:.1f}%")
-        with col3:
-            st.metric("Error in Dollars", f"${current_error:,.0f}")
-        
-        # Error distribution
-        fig = px.histogram(results[results['Model'] == 'Naive'], x='MAPE', nbins=30,
-                          title="Distribution of Forecast Errors")
-        st.plotly_chart(fig, use_container_width=True)
-        
-        # Cost breakdown
-        st.subheader("Estimated Annual Costs")
-        
-        # Simple cost model (50% over, 50% under)
-        under_cost = current_error * 0.5 * 0.25 * 2  # Lost profit * penalty
-        over_cost = current_error * 0.5 * 0.25       # Holding cost
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            st.metric("Stockout Costs", f"${under_cost:,.0f}")
-            st.caption("Lost sales + customer goodwill")
-        with col2:
-            st.metric("Holding Costs", f"${over_cost:,.0f}")
-            st.caption("Excess inventory carrying costs")
-    
-    with tab2:
-        st.subheader("Potential with Best Model Selection")
-        
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("Best Possible MAPE", f"{best_mape:.1f}%",
-                     delta=f"{- (naive_mape - best_mape):.1f}%")
-        with col2:
-            st.metric("Best Error Cost", f"${best_error:,.0f}")
-        with col3:
-            st.metric("Potential Savings", f"${savings:,.0f}",
-                     delta=f"{(savings/current_error*100):.1f}%")
-        
-        # Show which models would help
-        best_models = results.loc[results.groupby(['Store', 'Dept'])['MAPE'].idxmin()]
-        model_counts = best_models['Model'].value_counts().reset_index()
-        model_counts.columns = ['Model', 'Count']
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            fig = px.pie(model_counts, values='Count', names='Model',
-                        title="Optimal Model Distribution")
-            st.plotly_chart(fig, use_container_width=True)
-        
-        with col2:
-            st.markdown("### Model Impact")
-            for _, row in model_counts.iterrows():
-                st.metric(row['Model'], f"{row['Count']} departments")
-    
-    with tab3:
-        st.subheader("High-Impact Departments")
-        
-        # Use improvement potential
-        potential = calculate_improvement_potential()
-        top_potential = potential.nlargest(10, 'Potential_Savings')
-        
-        st.dataframe(
-            top_potential[['Store', 'Dept', 'MAPE_Naive', 'MAPE_Best', 
-                          'Potential_Savings']].round(1),
-            use_container_width=True
-        )
-        
-        total_potential = top_potential['Potential_Savings'].sum()
-        st.success(f"Top 10 departments represent ${total_potential:,.0f} in potential savings")
-        
-        # ROI calculation
-        implementation_cost = st.number_input("Implementation Cost ($)", 
-                                             min_value=100000, 
-                                             value=500000, 
-                                             step=50000)
-        
-        roi = ((savings - implementation_cost) / implementation_cost) * 100
-        payback = implementation_cost / (savings/12) if savings > 0 else float('inf')
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            st.metric("Projected ROI", f"{roi:.0f}%")
-        with col2:
-            st.metric("Payback Period", f"{payback:.1f} months")
 
 # ============================================
 # PAGE 6: PERFORMANCE REPORTS
