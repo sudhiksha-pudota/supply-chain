@@ -14,3 +14,4 @@ plotly
 xgboost
 datetime
 scipy
+altair<5
