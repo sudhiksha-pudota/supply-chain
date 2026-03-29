@@ -15,4 +15,4 @@ xgboost
 datetime
 scipy
 altair<5
-standard-imghdr
+imghdr
