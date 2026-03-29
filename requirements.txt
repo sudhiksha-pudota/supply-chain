@@ -14,4 +14,3 @@ plotly
 xgboost
 datetime
 scipy
-altair.vegalite.v4
