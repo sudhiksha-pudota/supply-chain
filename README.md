@@ -2,7 +2,7 @@
 
 https://supply-chain-rappczqchvo9v9elnfdgopg.streamlit.app/
 
-## 📌Overview
+## Overview
 
 This project presents a comprehensive **Sales Forecasting System** designed for a retail giant like Walmart. It moves beyond traditional one-size-fits-all forecasting by developing and comparing department-specific models. The system provides an interactive dashboard to visualize forecasts, analyze model performance, and quantify the financial impact of prediction accuracy on inventory costs.
 
@@ -60,7 +60,7 @@ A multi-page Streamlit application for deep-dive analysis:
 - **Live Application**: [Walmart Sales Forecasting App](https://supply-chain-rappczqchvo9v9elnfdgopg.streamlit.app/)
 - **Source Code Repository**: [sudhiksha-pudota/supply-chain](https://github.com/sudhiksha-pudota/supply-chain)
 
-## 💻 Local Installation & Setup
+##  Local Installation & Setup
 
 ### Prerequisites
 - [Python](https://www.python.org/downloads/) (version 3.8 or higher)
