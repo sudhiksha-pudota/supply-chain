@@ -92,7 +92,7 @@ st.markdown('<p class="sub-header">Data-Driven Insights â€¢ Model Performance â€
 @st.cache_data
 def download_file(file_id, model_path):
     if not os.path.exists(model_path):
-        gdown.download(id=file_id, output=model_path, quiet=False,fuzzy=True)
+        gdown.download(id=file_id, output=model_path, quiet=False)
 
 @st.cache_data
 def load_data():
