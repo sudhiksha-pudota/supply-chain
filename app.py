@@ -98,8 +98,8 @@ def download_file(file_id, model_path):
 def load_data():
     """Load all pre-computed data"""
     
-    df_id = '1yJzBrGgxhLRbOmXqsKIBC7BA-IKObQYI'
-    df_url = 'https://drive.google.com/file/d/1yJzBrGgxhLRbOmXqsKIBC7BA-IKObQYI'
+    df_id = '1YndkoINss0-QFF_tH-JKYLT2e94ph-Bj'
+    df_url = 'https://drive.google.com/file/d/1YndkoINss0-QFF_tH-JKYLT2e94ph-Bj'
     df_path = 'walmart_final_with_trends.csv'
     
     results_id = '1NqfK44tLNt6DrMv6ejoDpptDuuFOxwJu'
